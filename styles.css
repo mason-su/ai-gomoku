@@ -1,0 +1,359 @@
+:root {
+  --bg-top: #1a2f1f;
+  --bg-bottom: #0d1811;
+  --panel: rgba(255, 255, 255, 0.06);
+  --panel-border: rgba(255, 255, 255, 0.12);
+  --text: #f4f1ea;
+  --muted: #a8b5a0;
+  --wood: #d2a679;
+  --wood-dark: #b8895a;
+  --line: rgba(60, 36, 16, 0.55);
+  --black-stone: #1a1a1a;
+  --white-stone: #f3f3f0;
+  --win: #3ebd93;
+  --accent: #e8c27a;
+  --shadow: 0 24px 48px rgba(3, 12, 8, 0.45);
+  --radius: 18px;
+  --board-max: min(92vw, 560px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(232, 194, 122, 0.14), transparent 36%),
+    radial-gradient(circle at 88% 8%, rgba(62, 189, 147, 0.1), transparent 28%),
+    linear-gradient(160deg, var(--bg-top), var(--bg-bottom));
+}
+
+.app {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px 12px 28px;
+}
+
+.game {
+  width: min(100%, 620px);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: calc(var(--radius) + 6px);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  padding: 22px 18px 16px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.7rem, 4.5vw, 2.1rem);
+  letter-spacing: 0.06em;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.mode-label {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.mode-select {
+  appearance: none;
+  min-width: min(100%, 220px);
+  padding: 8px 34px 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%) calc(100% - 14px) / 6px 6px no-repeat,
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%) calc(100% - 9px) / 6px 6px no-repeat,
+    rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mode-select:focus-visible {
+  outline: 2px solid #7cc4f0;
+  outline-offset: 2px;
+}
+
+.scoreboard {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.score-card {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.score-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+
+.score-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.score-black .score-value {
+  color: #d0d0d0;
+}
+
+.score-white .score-value {
+  color: #fff;
+}
+
+.status {
+  min-height: 1.5rem;
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.status.is-win {
+  color: var(--win);
+}
+
+.status.is-draw {
+  color: var(--muted);
+}
+
+.status.is-thinking {
+  color: var(--accent);
+}
+
+.board-shell {
+  width: var(--board-max);
+  max-width: 100%;
+  margin: 0 auto 16px;
+  padding: 3.2%;
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, var(--wood) 0%, var(--wood-dark) 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(90, 50, 20, 0.25),
+    0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  grid-template-rows: repeat(15, 1fr);
+  aspect-ratio: 1 / 1;
+  width: 100%;
+}
+
+/* Lines pass through intersection centres (inset by half a cell). */
+.board-lines {
+  position: absolute;
+  inset: calc(100% / 30);
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: calc(100% / 14) calc(100% / 14);
+  background-position: 0 0;
+}
+
+/* Star points (hoshi) on a standard 15×15 board */
+.board-lines::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(60, 36, 16, 0.8) 2.2px, transparent 2.6px),
+    radial-gradient(circle, rgba(60, 36, 16, 0.8) 2.2px, transparent 2.6px),
+    radial-gradient(circle, rgba(60, 36, 16, 0.8) 2.2px, transparent 2.6px),
+    radial-gradient(circle, rgba(60, 36, 16, 0.8) 2.2px, transparent 2.6px),
+    radial-gradient(circle, rgba(60, 36, 16, 0.8) 2.2px, transparent 2.6px);
+  background-size: 100% 100%;
+  background-position:
+    calc(100% / 14 * 3) calc(100% / 14 * 3),
+    calc(100% / 14 * 11) calc(100% / 14 * 3),
+    calc(100% / 14 * 7) calc(100% / 14 * 7),
+    calc(100% / 14 * 3) calc(100% / 14 * 11),
+    calc(100% / 14 * 11) calc(100% / 14 * 11);
+  background-repeat: no-repeat;
+}
+
+.intersection {
+  appearance: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.intersection:disabled {
+  cursor: default;
+}
+
+.intersection:focus-visible {
+  outline: none;
+}
+
+.intersection:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border: 2px solid #7cc4f0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.intersection:hover:not(:disabled):not(.has-stone)::before {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.stone {
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 1px 2px 3px rgba(0, 0, 0, 0.35);
+}
+
+.stone-black {
+  background:
+    radial-gradient(circle at 32% 28%, #555 0%, var(--black-stone) 55%, #000 100%);
+}
+
+.stone-white {
+  background:
+    radial-gradient(circle at 32% 28%, #fff 0%, var(--white-stone) 55%, #cfcfc8 100%);
+  box-shadow:
+    1px 2px 3px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.intersection.is-winning .stone {
+  box-shadow:
+    0 0 0 2px rgba(62, 189, 147, 0.95),
+    0 0 10px rgba(62, 189, 147, 0.55),
+    1px 2px 3px rgba(0, 0, 0, 0.35);
+}
+
+.intersection.is-last .stone::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18%;
+  height: 18%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #c0392b;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  min-height: 46px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  color: #1a2f1f;
+  background: linear-gradient(180deg, #f0d59a, #e8c27a);
+}
+
+.btn-secondary {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--panel-border);
+}
+
+.btn:focus-visible {
+  outline: 2px solid #7cc4f0;
+  outline-offset: 2px;
+}
+
+.hint {
+  margin: 12px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.board.is-locked {
+  pointer-events: none;
+}
+
+@media (max-width: 480px) {
+  .game {
+    padding: 18px 12px 14px;
+  }
+
+  .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-bar {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mode-select {
+    width: 100%;
+  }
+}

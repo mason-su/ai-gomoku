@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gomoku — Five in a Row</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="game" aria-labelledby="game-title">
+        <header class="header">
+          <h1 id="game-title">Gomoku</h1>
+          <p class="subtitle">Five in a Row · Freestyle rules</p>
+        </header>
+
+        <div class="mode-bar" role="group" aria-label="Game mode">
+          <label class="mode-label" for="mode-select">Mode</label>
+          <select id="mode-select" class="mode-select">
+            <option value="pvp">Player vs Player</option>
+            <option value="easy">vs AI — Easy</option>
+            <option value="medium" selected>vs AI — Medium</option>
+            <option value="hard">vs AI — Hard</option>
+          </select>
+        </div>
+
+        <div class="scoreboard" aria-label="Scoreboard">
+          <div class="score-card score-black">
+            <span class="score-label">Black</span>
+            <span id="score-black" class="score-value">0</span>
+          </div>
+          <div class="score-card score-draw">
+            <span class="score-label">Draws</span>
+            <span id="score-draws" class="score-value">0</span>
+          </div>
+          <div class="score-card score-white">
+            <span class="score-label">White</span>
+            <span id="score-white" class="score-value">0</span>
+          </div>
+        </div>
+
+        <p id="status" class="status" role="status" aria-live="polite">
+          Black's turn
+        </p>
+
+        <div class="board-shell">
+          <div
+            id="board"
+            class="board"
+            role="grid"
+            aria-label="Gomoku board, 15 by 15"
+          ></div>
+        </div>
+
+        <div class="actions">
+          <button type="button" id="restart-btn" class="btn btn-primary">
+            Restart Game
+          </button>
+          <button type="button" id="reset-scores-btn" class="btn btn-secondary">
+            Reset Scores
+          </button>
+        </div>
+
+        <p class="hint">
+          Stones are placed on intersections. In AI modes you play Black and
+          move first.
+        </p>
+      </section>
+    </main>
+
+    <script src="./js/game.js"></script>
+    <script src="./js/ai.js"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>

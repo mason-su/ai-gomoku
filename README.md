@@ -6,10 +6,8 @@ Portfolio index: [ai-agent-learning](https://github.com/mason-su/ai-agent-learni
 
 ## Live Demo
 
-> Update the status below after GitHub Pages is enabled and the public URL has been verified.
-
-- **GitHub Pages URL:** `https://mason-su.github.io/ai-gomoku/`
-- **Status:** Not verified yet
+- **Play online:** [https://mason-su.github.io/ai-gomoku/](https://mason-su.github.io/ai-gomoku/)
+- **Status:** Deployed and verified
 
 ## Features
 

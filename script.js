@@ -1,5 +1,6 @@
 /**
  * Gomoku UI — wires game rules + AI to the DOM.
+ * Modes: PvP, vs AI (easy/medium/hard), AI vs AI spectator.
  * Requires GomokuGame and GomokuAI (loaded via script tags).
  */
 (function () {
@@ -23,6 +24,14 @@
   const sideSelect = document.getElementById("side-select");
   const sideBar = document.getElementById("side-bar");
   const hintEl = document.getElementById("play-hint");
+  const spectatorBar = document.getElementById("spectator-bar");
+  const blackAiSelect = document.getElementById("black-ai-select");
+  const whiteAiSelect = document.getElementById("white-ai-select");
+  const speedSelect = document.getElementById("speed-select");
+  const specStartBtn = document.getElementById("spec-start-btn");
+  const specPauseBtn = document.getElementById("spec-pause-btn");
+  const specResumeBtn = document.getElementById("spec-resume-btn");
+  const specRestartBtn = document.getElementById("spec-restart-btn");
 
   const state = {
     board: Game.createBoard(),
@@ -35,12 +44,27 @@
     humanColor: sideSelect.value === "white" ? Game.WHITE : Game.BLACK,
     scores: { B: 0, W: 0, draws: 0 },
     moveToken: 0,
+    spectator: {
+      running: false,
+      paused: false,
+      blackDiff: blackAiSelect.value,
+      whiteDiff: whiteAiSelect.value,
+      speedMs: Number(speedSelect.value) || 650,
+    },
   };
 
   const intersectionButtons = [];
 
-  function isAiMode() {
-    return state.mode !== "pvp";
+  function isHumanAiMode() {
+    return (
+      state.mode === "easy" ||
+      state.mode === "medium" ||
+      state.mode === "hard"
+    );
+  }
+
+  function isSpectatorMode() {
+    return state.mode === "aivsai";
   }
 
   function aiDifficulty() {
@@ -51,17 +75,47 @@
     return state.humanColor === Game.BLACK ? Game.WHITE : Game.BLACK;
   }
 
-  function syncSideControls() {
-    const ai = isAiMode();
-    sideBar.hidden = !ai;
-    sideSelect.disabled = !ai;
-    if (ai) {
+  function cancelPendingAi() {
+    state.moveToken += 1;
+    state.aiThinking = false;
+  }
+
+  function syncControlsVisibility() {
+    const humanAi = isHumanAiMode();
+    const spectate = isSpectatorMode();
+
+    sideBar.hidden = !humanAi;
+    sideSelect.disabled = !humanAi;
+    spectatorBar.hidden = !spectate;
+
+    // Bottom restart still useful; in spectator prefer the spectator Restart.
+    restartBtn.disabled = spectate;
+
+    if (spectate) {
+      hintEl.textContent =
+        "Spectator mode: pick difficulties for Black and White, then Start. The board is view-only.";
+    } else if (humanAi) {
       hintEl.textContent =
         "Stones are placed on intersections. Choose Black to move first, or White to let the AI open.";
     } else {
       hintEl.textContent =
         "Stones are placed on intersections. In Player vs Player, Black always moves first.";
     }
+
+    syncSpectatorButtons();
+  }
+
+  function syncSpectatorButtons() {
+    if (!isSpectatorMode()) {
+      return;
+    }
+    const running = state.spectator.running;
+    const paused = state.spectator.paused;
+    specStartBtn.disabled = running && !paused;
+    specPauseBtn.disabled = !running || paused || !state.gameActive;
+    specResumeBtn.disabled = !running || !paused || !state.gameActive;
+    blackAiSelect.disabled = running && !paused;
+    whiteAiSelect.disabled = running && !paused;
   }
 
   function buildBoard() {
@@ -104,10 +158,13 @@
   }
 
   function humanMayInteract() {
+    if (isSpectatorMode()) {
+      return false;
+    }
     if (!state.gameActive || state.aiThinking) {
       return false;
     }
-    if (isAiMode() && state.currentPlayer !== state.humanColor) {
+    if (isHumanAiMode() && state.currentPlayer !== state.humanColor) {
       return false;
     }
     return true;
@@ -151,7 +208,19 @@
     state.aiThinking = false;
     state.scores[result.winner] += 1;
     updateScores();
-    setStatus(Game.playerLabel(result.winner) + " wins!", "is-win");
+
+    if (isSpectatorMode()) {
+      state.spectator.running = false;
+      state.spectator.paused = false;
+      const label =
+        result.winner === Game.BLACK
+          ? "Black (" + state.spectator.blackDiff + ")"
+          : "White (" + state.spectator.whiteDiff + ")";
+      setStatus(label + " wins!", "is-win");
+      syncSpectatorButtons();
+    } else {
+      setStatus(Game.playerLabel(result.winner) + " wins!", "is-win");
+    }
     renderBoard();
   }
 
@@ -161,12 +230,44 @@
     state.aiThinking = false;
     state.scores.draws += 1;
     updateScores();
+    if (isSpectatorMode()) {
+      state.spectator.running = false;
+      state.spectator.paused = false;
+      syncSpectatorButtons();
+    }
     setStatus("It's a draw!", "is-draw");
     renderBoard();
   }
 
   function announceTurn() {
-    if (!isAiMode()) {
+    if (isSpectatorMode()) {
+      if (state.spectator.paused) {
+        setStatus("Paused — " + Game.playerLabel(state.currentPlayer) + " to move");
+        return;
+      }
+      if (state.spectator.running && state.gameActive) {
+        const diff =
+          state.currentPlayer === Game.BLACK
+            ? state.spectator.blackDiff
+            : state.spectator.whiteDiff;
+        setStatus(
+          Game.playerLabel(state.currentPlayer) +
+            " (" +
+            diff +
+            " AI) is thinking…",
+          "is-thinking"
+        );
+        return;
+      }
+      setStatus(
+        "Ready — " +
+          Game.playerLabel(state.currentPlayer) +
+          " to move. Press Start."
+      );
+      return;
+    }
+
+    if (!isHumanAiMode()) {
       setStatus(Game.playerLabel(state.currentPlayer) + "'s turn");
       return;
     }
@@ -182,7 +283,7 @@
     setStatus("Your turn (" + Game.playerLabel(state.humanColor) + ")");
   }
 
-  function applyHumanOrSharedMove(index) {
+  function applyMove(index) {
     const validation = Game.isValidMove(state.board, index, state.gameActive);
     if (!validation.ok) {
       return false;
@@ -208,8 +309,12 @@
     return true;
   }
 
-  function scheduleAiMove() {
-    if (!isAiMode() || !state.gameActive || state.currentPlayer !== aiColor()) {
+  function scheduleHumanOpponentAi() {
+    if (
+      !isHumanAiMode() ||
+      !state.gameActive ||
+      state.currentPlayer !== aiColor()
+    ) {
       return;
     }
 
@@ -243,34 +348,128 @@
         return;
       }
 
-      applyHumanOrSharedMove(move);
+      applyMove(move);
     });
+  }
+
+  function delay(ms, token) {
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        resolve(token === state.moveToken);
+      }, ms);
+    });
+  }
+
+  function scheduleSpectatorTurn() {
+    if (
+      !isSpectatorMode() ||
+      !state.spectator.running ||
+      state.spectator.paused ||
+      !state.gameActive
+    ) {
+      return;
+    }
+
+    const side = state.currentPlayer;
+    const difficulty =
+      side === Game.BLACK
+        ? state.spectator.blackDiff
+        : state.spectator.whiteDiff;
+
+    state.aiThinking = true;
+    state.moveToken += 1;
+    const token = state.moveToken;
+    announceTurn();
+    renderBoard();
+    syncSpectatorButtons();
+
+    const boardSnapshot = Game.cloneBoard(state.board);
+    const thinkPromise = AI.chooseMove(boardSnapshot, side, difficulty, {
+      yieldMs: 0,
+    });
+
+    Promise.all([thinkPromise, delay(state.spectator.speedMs, token)]).then(
+      function (results) {
+        const move = results[0];
+        const stillCurrent = results[1];
+
+        if (!stillCurrent || token !== state.moveToken) {
+          return;
+        }
+
+        state.aiThinking = false;
+
+        if (
+          !isSpectatorMode() ||
+          !state.spectator.running ||
+          state.spectator.paused ||
+          !state.gameActive ||
+          state.currentPlayer !== side
+        ) {
+          renderBoard();
+          syncSpectatorButtons();
+          return;
+        }
+
+        let playMove = move;
+        if (!AI.isLegalAiMove(state.board, playMove)) {
+          playMove = AI.getEasyMove(state.board, side);
+        }
+
+        if (playMove === null || !AI.isLegalAiMove(state.board, playMove)) {
+          setStatus("Spectator AI could not find a move.", "is-draw");
+          state.spectator.running = false;
+          syncSpectatorButtons();
+          renderBoard();
+          return;
+        }
+
+        applyMove(playMove);
+
+        if (state.gameActive && state.spectator.running && !state.spectator.paused) {
+          scheduleSpectatorTurn();
+        } else {
+          syncSpectatorButtons();
+        }
+      }
+    );
   }
 
   function handleIntersectionClick(index) {
     if (!humanMayInteract()) {
       return;
     }
-    if (!applyHumanOrSharedMove(index)) {
+    if (!applyMove(index)) {
       return;
     }
-    scheduleAiMove();
+    scheduleHumanOpponentAi();
   }
 
-  function restartGame() {
-    state.moveToken += 1;
+  function resetBoardState() {
+    cancelPendingAi();
     state.board = Game.createBoard();
     state.currentPlayer = Game.BLACK;
     state.gameActive = true;
     state.winningLine = null;
     state.lastMove = null;
-    state.aiThinking = false;
+  }
+
+  function restartGame() {
+    resetBoardState();
+    if (isSpectatorMode()) {
+      state.spectator.running = false;
+      state.spectator.paused = false;
+      announceTurn();
+      renderBoard();
+      syncSpectatorButtons();
+      return;
+    }
+
     announceTurn();
     renderBoard();
 
-    // Human chose White → AI (Black) opens.
-    if (isAiMode() && state.humanColor === Game.WHITE) {
-      scheduleAiMove();
+    if (isHumanAiMode() && state.humanColor === Game.WHITE) {
+      scheduleHumanOpponentAi();
     }
   }
 
@@ -281,14 +480,85 @@
   }
 
   function onModeChange() {
+    cancelPendingAi();
     state.mode = modeSelect.value;
-    syncSideControls();
+    state.spectator.running = false;
+    state.spectator.paused = false;
+    syncControlsVisibility();
     restartGame();
   }
 
   function onSideChange() {
     state.humanColor = sideSelect.value === "white" ? Game.WHITE : Game.BLACK;
     restartGame();
+  }
+
+  function onSpectatorDiffChange() {
+    state.spectator.blackDiff = blackAiSelect.value;
+    state.spectator.whiteDiff = whiteAiSelect.value;
+    if (isSpectatorMode() && !state.spectator.running) {
+      announceTurn();
+    }
+  }
+
+  function onSpeedChange() {
+    state.spectator.speedMs = Number(speedSelect.value) || 650;
+  }
+
+  function onSpecStart() {
+    if (!isSpectatorMode()) {
+      return;
+    }
+    state.spectator.blackDiff = blackAiSelect.value;
+    state.spectator.whiteDiff = whiteAiSelect.value;
+    state.spectator.speedMs = Number(speedSelect.value) || 650;
+
+    if (!state.gameActive) {
+      resetBoardState();
+    }
+
+    state.spectator.running = true;
+    state.spectator.paused = false;
+    syncSpectatorButtons();
+    scheduleSpectatorTurn();
+  }
+
+  function onSpecPause() {
+    if (!isSpectatorMode() || !state.spectator.running) {
+      return;
+    }
+    state.spectator.paused = true;
+    cancelPendingAi();
+    announceTurn();
+    renderBoard();
+    syncSpectatorButtons();
+  }
+
+  function onSpecResume() {
+    if (
+      !isSpectatorMode() ||
+      !state.spectator.running ||
+      !state.spectator.paused ||
+      !state.gameActive
+    ) {
+      return;
+    }
+    state.spectator.paused = false;
+    syncSpectatorButtons();
+    scheduleSpectatorTurn();
+  }
+
+  function onSpecRestart() {
+    if (!isSpectatorMode()) {
+      return;
+    }
+    cancelPendingAi();
+    state.spectator.running = false;
+    state.spectator.paused = false;
+    resetBoardState();
+    announceTurn();
+    renderBoard();
+    syncSpectatorButtons();
   }
 
   boardEl.addEventListener("click", function (event) {
@@ -303,14 +573,21 @@
   resetScoresBtn.addEventListener("click", resetScores);
   modeSelect.addEventListener("change", onModeChange);
   sideSelect.addEventListener("change", onSideChange);
+  blackAiSelect.addEventListener("change", onSpectatorDiffChange);
+  whiteAiSelect.addEventListener("change", onSpectatorDiffChange);
+  speedSelect.addEventListener("change", onSpeedChange);
+  specStartBtn.addEventListener("click", onSpecStart);
+  specPauseBtn.addEventListener("click", onSpecPause);
+  specResumeBtn.addEventListener("click", onSpecResume);
+  specRestartBtn.addEventListener("click", onSpecRestart);
 
   buildBoard();
-  syncSideControls();
+  syncControlsVisibility();
   updateScores();
   announceTurn();
   renderBoard();
 
-  if (isAiMode() && state.humanColor === Game.WHITE) {
-    scheduleAiMove();
+  if (isHumanAiMode() && state.humanColor === Game.WHITE) {
+    scheduleHumanOpponentAi();
   }
 })();

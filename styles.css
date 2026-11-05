@@ -115,6 +115,45 @@ body {
   outline-offset: 2px;
 }
 
+.mode-select-sm {
+  min-width: min(100%, 130px);
+}
+
+.spectator-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 14px;
+  margin: 0 0 14px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.spectator-bar[hidden] {
+  display: none;
+}
+
+.spectator-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.btn-compact {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .scoreboard {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

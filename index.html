@@ -22,6 +22,7 @@
               <option value="easy">vs AI — Easy</option>
               <option value="medium" selected>vs AI — Medium</option>
               <option value="hard">vs AI — Hard</option>
+              <option value="aivsai">AI vs AI (Spectate)</option>
             </select>
           </div>
 
@@ -31,6 +32,53 @@
               <option value="black" selected>Black (first)</option>
               <option value="white">White (second)</option>
             </select>
+          </div>
+        </div>
+
+        <div
+          id="spectator-bar"
+          class="spectator-bar"
+          hidden
+          aria-label="AI vs AI spectator controls"
+        >
+          <div class="mode-bar">
+            <label class="mode-label" for="black-ai-select">Black AI</label>
+            <select id="black-ai-select" class="mode-select mode-select-sm">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+          <div class="mode-bar">
+            <label class="mode-label" for="white-ai-select">White AI</label>
+            <select id="white-ai-select" class="mode-select mode-select-sm">
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard" selected>Hard</option>
+            </select>
+          </div>
+          <div class="mode-bar">
+            <label class="mode-label" for="speed-select">Speed</label>
+            <select id="speed-select" class="mode-select mode-select-sm">
+              <option value="1200">Slow</option>
+              <option value="650" selected>Normal</option>
+              <option value="250">Fast</option>
+              <option value="80">Very fast</option>
+            </select>
+          </div>
+          <div class="spectator-actions">
+            <button type="button" id="spec-start-btn" class="btn btn-primary btn-compact">
+              Start
+            </button>
+            <button type="button" id="spec-pause-btn" class="btn btn-secondary btn-compact" disabled>
+              Pause
+            </button>
+            <button type="button" id="spec-resume-btn" class="btn btn-secondary btn-compact" disabled>
+              Resume
+            </button>
+            <button type="button" id="spec-restart-btn" class="btn btn-secondary btn-compact">
+              Restart
+            </button>
           </div>
         </div>
 

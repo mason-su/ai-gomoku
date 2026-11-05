@@ -301,7 +301,9 @@
   }
 
   /** Medium: greedy heuristic attack + defence on candidate set. */
-  function getMediumMove(board, player) {
+  function getMediumMove(board, player, options) {
+    const opts = options || {};
+    const randomFn = typeof opts.random === "function" ? opts.random : Math.random;
     const candidates = Game.getCandidateMoves(board, 2);
     if (candidates.length === 0) {
       return null;
@@ -312,7 +314,7 @@
     const top = ranked.filter(function (item) {
       return item.score === bestScore;
     });
-    return pickRandom(top).index;
+    return pickRandom(top, randomFn).index;
   }
 
   /**
@@ -419,63 +421,98 @@
   }
 
   /**
+   * Synchronous Hard search (shared by browser Promise wrapper and Node benchmarks).
+   * options: { maxDepth, random }
+   */
+  function searchHardMove(board, player, options) {
+    const opts = options || {};
+    const maxDepth = typeof opts.maxDepth === "number" ? opts.maxDepth : 2;
+    const work = Game.cloneBoard(board);
+    const stats = { nodes: 0 };
+    let best = getMediumMove(work, player, opts);
+
+    for (let depth = 1; depth <= maxDepth; depth += 1) {
+      const result = minimax(
+        work,
+        depth,
+        -Infinity,
+        Infinity,
+        player,
+        player,
+        stats
+      );
+      if (result.move !== null && result.move !== undefined) {
+        best = result.move;
+      }
+      if (result.score >= WIN_SCORE / 2) {
+        break;
+      }
+    }
+
+    return { move: best, nodes: stats.nodes };
+  }
+
+  /**
    * Hard: shallow iterative deepening (depth 1 then 2) with alpha-beta.
    * Returns a Promise so the UI can paint "thinking" before the search runs.
    */
   function getHardMove(board, player, options) {
     const opts = options || {};
-    const maxDepth = typeof opts.maxDepth === "number" ? opts.maxDepth : 2;
     const delayMs = typeof opts.yieldMs === "number" ? opts.yieldMs : 20;
 
     return new Promise(function (resolve) {
       setTimeout(function () {
-        const work = Game.cloneBoard(board);
-        const stats = { nodes: 0 };
-        let best = getMediumMove(work, player);
-
-        for (let depth = 1; depth <= maxDepth; depth += 1) {
-          const result = minimax(
-            work,
-            depth,
-            -Infinity,
-            Infinity,
-            player,
-            player,
-            stats
-          );
-          if (result.move !== null && result.move !== undefined) {
-            best = result.move;
-          }
-          // Immediate win found
-          if (result.score >= WIN_SCORE / 2) {
-            break;
-          }
-        }
-
-        resolve({ move: best, nodes: stats.nodes });
+        resolve(searchHardMove(board, player, opts));
       }, delayMs);
     });
   }
 
   /**
    * Unified entry: returns a Promise resolving to a move index (or null).
+   * options forwarded to Easy / Medium / Hard (e.g. { random, maxDepth, yieldMs }).
    */
-  function chooseMove(board, player, difficulty) {
+  function chooseMove(board, player, difficulty, options) {
     const level = (difficulty || "easy").toLowerCase();
+    const opts = options || {};
 
     if (level === "easy") {
-      return Promise.resolve(getEasyMove(board, player));
+      return Promise.resolve(getEasyMove(board, player, opts));
     }
     if (level === "medium") {
-      return Promise.resolve(getMediumMove(board, player));
+      return Promise.resolve(getMediumMove(board, player, opts));
     }
     if (level === "hard") {
-      return getHardMove(board, player).then(function (result) {
+      return getHardMove(board, player, opts).then(function (result) {
         return result.move;
       });
     }
 
-    return Promise.resolve(getEasyMove(board, player));
+    return Promise.resolve(getEasyMove(board, player, opts));
+  }
+
+  /**
+   * Synchronous chooser for headless benchmarks. Returns { move, nodes, difficulty }.
+   */
+  function chooseMoveSync(board, player, difficulty, options) {
+    const level = (difficulty || "easy").toLowerCase();
+    const opts = options || {};
+
+    if (level === "hard") {
+      const hard = searchHardMove(board, player, opts);
+      return { move: hard.move, nodes: hard.nodes, difficulty: level };
+    }
+    if (level === "medium") {
+      return {
+        move: getMediumMove(board, player, opts),
+        nodes: null,
+        difficulty: level,
+      };
+    }
+    return {
+      move: getEasyMove(board, player, opts),
+      nodes: null,
+      difficulty: "easy",
+    };
   }
 
   function isLegalAiMove(board, move) {
@@ -498,8 +535,10 @@
     pickWeightedIndex: pickWeightedIndex,
     getEasyMove: getEasyMove,
     getMediumMove: getMediumMove,
+    searchHardMove: searchHardMove,
     getHardMove: getHardMove,
     chooseMove: chooseMove,
+    chooseMoveSync: chooseMoveSync,
     isLegalAiMove: isLegalAiMove,
   };
 });

@@ -14,14 +14,24 @@
           <p class="subtitle">Five in a Row · Freestyle rules</p>
         </header>
 
-        <div class="mode-bar" role="group" aria-label="Game mode">
-          <label class="mode-label" for="mode-select">Mode</label>
-          <select id="mode-select" class="mode-select">
-            <option value="pvp">Player vs Player</option>
-            <option value="easy">vs AI — Easy</option>
-            <option value="medium" selected>vs AI — Medium</option>
-            <option value="hard">vs AI — Hard</option>
-          </select>
+        <div class="controls-row">
+          <div class="mode-bar" role="group" aria-label="Game mode">
+            <label class="mode-label" for="mode-select">Mode</label>
+            <select id="mode-select" class="mode-select">
+              <option value="pvp">Player vs Player</option>
+              <option value="easy">vs AI — Easy</option>
+              <option value="medium" selected>vs AI — Medium</option>
+              <option value="hard">vs AI — Hard</option>
+            </select>
+          </div>
+
+          <div id="side-bar" class="mode-bar" role="group" aria-label="Your side">
+            <label class="mode-label" for="side-select">You play</label>
+            <select id="side-select" class="mode-select">
+              <option value="black" selected>Black (first)</option>
+              <option value="white">White (second)</option>
+            </select>
+          </div>
         </div>
 
         <div class="scoreboard" aria-label="Scoreboard">
@@ -61,9 +71,9 @@
           </button>
         </div>
 
-        <p class="hint">
-          Stones are placed on intersections. In AI modes you play Black and
-          move first.
+        <p id="play-hint" class="hint">
+          Stones are placed on intersections. Choose Black to move first, or
+          White to let the AI open.
         </p>
       </section>
     </main>

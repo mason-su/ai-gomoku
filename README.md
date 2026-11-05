@@ -16,7 +16,7 @@ Portfolio index: [ai-agent-learning](https://github.com/mason-su/ai-agent-learni
 - Freestyle rules: five or more consecutive stones wins; no forbidden moves
 - Player vs Player mode
 - Player vs AI with Easy / Medium / Hard difficulties
-- Human always plays **Black** and moves first in AI games
+- In AI games, choose to play **Black (first)** or **White (second)**
 - Winning-line highlight, last-move marker, and live turn status
 - Restart Game and Reset Scores controls
 - Invalid-move prevention and UI lock during AI turns
@@ -84,7 +84,7 @@ All AI runs **locally in the browser**. Nothing is sent to an API.
 
 | Level | Strategy | Typical use |
 |-------|----------|-------------|
-| **Easy** | Random legal move among nearby candidates | Baseline / casual |
+| **Easy** | Forced win/block, then weighted-random among top heuristic candidates | Beginner who knows basics but blunders |
 | **Medium** | Greedy heuristic: attack score + defence score | Solid blocker / attacker |
 | **Hard** | Depth-limited Minimax + Alpha-Beta + heuristics + candidate filter | Demonstrates classic game-tree search |
 
@@ -99,7 +99,7 @@ This keeps Medium scoring cheap and makes Hard’s branching factor tractable.
 
 Implementation: `GomokuGame.getCandidateMoves(board, radius)` in `js/game.js`.
 
-### 2. Pattern heuristic (Medium & Hard)
+### 2. Pattern heuristic (shared by Easy / Medium / Hard)
 
 For a focus intersection and a player colour, the evaluator looks along each of the four directions and scores **consecutive length** plus **open ends** (0–2 empty sides):
 
@@ -119,9 +119,32 @@ Then picks a top-scoring move (ties broken randomly). That is why Medium will us
 
 Implementation: `patternScore`, `scoreMoveForPlayer`, `rankMove`, `getMediumMove` in `js/ai.js`.
 
-### 3. Easy AI
+### 3. Easy AI (beginner with noise)
 
-`getEasyMove` picks uniformly at random from the candidate set (fallback: any empty cell). No evaluation.
+Easy reuses the same **candidate generation** and **heuristic ranking** as Medium, but does **not** always play the best move.
+
+Decision order in `getEasyMove(board, player, options)`:
+
+1. **Immediate win** — if any candidate completes five-in-a-row for the AI, play one of those (mandatory).
+2. **Immediate block** — if the opponent could win on the next move at a candidate cell, play a blocking move (mandatory).
+3. **Otherwise** — sort candidates by the shared heuristic, keep the top `TOP_CANDIDATE_COUNT` moves, then pick with **weighted random** so stronger shapes are favoured but weaker ones still appear.
+
+Tunable parameters (`EASY_DEFAULTS` in `js/ai.js`, overridable via `options`):
+
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `SCORE_WEIGHT_EXPONENT` | `1.0` | Higher → closer to always picking the best score |
+| `SCORE_WEIGHT_OFFSET` | `80` | Larger → flattens score differences (weaker play) |
+| `TOP_CANDIDATE_COUNT` | `14` | Caps how many ranked moves enter the lottery |
+| `UNIFORM_PICK_CHANCE` | `0.45` | Chance to ignore weights and pick uniformly from the top pool |
+
+Weight for a candidate (when not taking the uniform branch):
+
+`(score - minScoreInPool + SCORE_WEIGHT_OFFSET) ^ SCORE_WEIGHT_EXPONENT`
+
+Defaults are tuned so Easy stays **clearly weaker than Medium**: still takes/blocks instant fives, but often misses quieter attacking and defending chances. Easy still does **not** look ahead for double threats — that is intentional.
+
+For tests, pass `options.random` (a function returning a number in `[0, 1)`) to make sampling deterministic.
 
 ### 4. Hard AI — Minimax + Alpha-Beta
 
@@ -194,6 +217,7 @@ Coverage includes:
 - Illegal moves (overlap, out of range, game already over)
 - Candidate generation (centre opening, neighbours only)
 - Easy / Medium / Hard AI returning legal empty cells
+- Easy AI immediate win, immediate block, weighted selection, and tunable top-N
 - Medium AI blocking an open four
 
 ---
@@ -218,8 +242,8 @@ All assets use relative paths (`./styles.css`, `./js/game.js`, …), so the same
 ## How to Play
 
 1. Choose a mode (PvP or vs AI difficulty).
-2. Click an empty intersection to place a stone.
-3. In AI modes you are Black; White moves automatically after you.
+2. In AI modes, choose **You play**: Black (first) or White (second). If you pick White, the AI opens as Black.
+3. Click an empty intersection to place a stone.
 4. A winning five-or-more line is highlighted when the game ends.
 5. Use **Restart Game** for a new round (scores kept).
 6. Use **Reset Scores** to clear the scoreboard and start fresh.

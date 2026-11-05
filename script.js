@@ -20,6 +20,9 @@
   const restartBtn = document.getElementById("restart-btn");
   const resetScoresBtn = document.getElementById("reset-scores-btn");
   const modeSelect = document.getElementById("mode-select");
+  const sideSelect = document.getElementById("side-select");
+  const sideBar = document.getElementById("side-bar");
+  const hintEl = document.getElementById("play-hint");
 
   const state = {
     board: Game.createBoard(),
@@ -29,6 +32,7 @@
     lastMove: null,
     aiThinking: false,
     mode: modeSelect.value,
+    humanColor: sideSelect.value === "white" ? Game.WHITE : Game.BLACK,
     scores: { B: 0, W: 0, draws: 0 },
     moveToken: 0,
   };
@@ -41,6 +45,23 @@
 
   function aiDifficulty() {
     return state.mode;
+  }
+
+  function aiColor() {
+    return state.humanColor === Game.BLACK ? Game.WHITE : Game.BLACK;
+  }
+
+  function syncSideControls() {
+    const ai = isAiMode();
+    sideBar.hidden = !ai;
+    sideSelect.disabled = !ai;
+    if (ai) {
+      hintEl.textContent =
+        "Stones are placed on intersections. Choose Black to move first, or White to let the AI open.";
+    } else {
+      hintEl.textContent =
+        "Stones are placed on intersections. In Player vs Player, Black always moves first.";
+    }
   }
 
   function buildBoard() {
@@ -86,7 +107,7 @@
     if (!state.gameActive || state.aiThinking) {
       return false;
     }
-    if (isAiMode() && state.currentPlayer === Game.WHITE) {
+    if (isAiMode() && state.currentPlayer !== state.humanColor) {
       return false;
     }
     return true;
@@ -145,13 +166,20 @@
   }
 
   function announceTurn() {
-    if (isAiMode() && state.currentPlayer === Game.WHITE) {
-      setStatus("White (AI) is thinking…", "is-thinking");
-    } else if (isAiMode()) {
-      setStatus("Your turn (Black)");
-    } else {
+    if (!isAiMode()) {
       setStatus(Game.playerLabel(state.currentPlayer) + "'s turn");
+      return;
     }
+
+    if (state.currentPlayer === aiColor()) {
+      setStatus(
+        Game.playerLabel(aiColor()) + " (AI) is thinking…",
+        "is-thinking"
+      );
+      return;
+    }
+
+    setStatus("Your turn (" + Game.playerLabel(state.humanColor) + ")");
   }
 
   function applyHumanOrSharedMove(index) {
@@ -181,10 +209,11 @@
   }
 
   function scheduleAiMove() {
-    if (!isAiMode() || !state.gameActive || state.currentPlayer !== Game.WHITE) {
+    if (!isAiMode() || !state.gameActive || state.currentPlayer !== aiColor()) {
       return;
     }
 
+    const side = aiColor();
     state.aiThinking = true;
     state.moveToken += 1;
     const token = state.moveToken;
@@ -192,21 +221,20 @@
     renderBoard();
 
     const boardSnapshot = Game.cloneBoard(state.board);
-    AI.chooseMove(boardSnapshot, Game.WHITE, aiDifficulty()).then(function (move) {
+    AI.chooseMove(boardSnapshot, side, aiDifficulty()).then(function (move) {
       if (token !== state.moveToken) {
         return;
       }
 
       state.aiThinking = false;
 
-      if (!state.gameActive || state.currentPlayer !== Game.WHITE) {
+      if (!state.gameActive || state.currentPlayer !== side) {
         renderBoard();
         return;
       }
 
       if (!AI.isLegalAiMove(state.board, move)) {
-        // Fallback: never leave the game stuck.
-        move = AI.getEasyMove(state.board);
+        move = AI.getEasyMove(state.board, side);
       }
 
       if (move === null || !AI.isLegalAiMove(state.board, move)) {
@@ -239,6 +267,11 @@
     state.aiThinking = false;
     announceTurn();
     renderBoard();
+
+    // Human chose White → AI (Black) opens.
+    if (isAiMode() && state.humanColor === Game.WHITE) {
+      scheduleAiMove();
+    }
   }
 
   function resetScores() {
@@ -249,6 +282,12 @@
 
   function onModeChange() {
     state.mode = modeSelect.value;
+    syncSideControls();
+    restartGame();
+  }
+
+  function onSideChange() {
+    state.humanColor = sideSelect.value === "white" ? Game.WHITE : Game.BLACK;
     restartGame();
   }
 
@@ -263,9 +302,15 @@
   restartBtn.addEventListener("click", restartGame);
   resetScoresBtn.addEventListener("click", resetScores);
   modeSelect.addEventListener("change", onModeChange);
+  sideSelect.addEventListener("change", onSideChange);
 
   buildBoard();
+  syncSideControls();
   updateScores();
   announceTurn();
   renderBoard();
+
+  if (isAiMode() && state.humanColor === Game.WHITE) {
+    scheduleAiMove();
+  }
 })();

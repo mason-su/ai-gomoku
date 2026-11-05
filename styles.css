@@ -68,12 +68,24 @@ body {
   font-size: 0.92rem;
 }
 
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 18px;
+  margin-bottom: 14px;
+}
+
 .mode-bar {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-bottom: 14px;
+}
+
+.mode-bar[hidden] {
+  display: none;
 }
 
 .mode-label {

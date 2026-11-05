@@ -1,5 +1,5 @@
 /**
- * Gomoku AI: Easy (random), Medium (heuristic), Hard (minimax + alpha-beta).
+ * Gomoku AI: Easy (beginner heuristic + noise), Medium (greedy), Hard (minimax).
  * Depends on GomokuGame (loaded first in the browser, or required in Node).
  */
 (function (root, factory) {
@@ -141,18 +141,163 @@
     return scored;
   }
 
-  function pickRandom(moves) {
-    return moves[Math.floor(Math.random() * moves.length)];
+  function pickRandom(moves, randomFn) {
+    const rnd = typeof randomFn === "function" ? randomFn : Math.random;
+    return moves[Math.floor(rnd() * moves.length)];
   }
 
-  /** Easy: random legal move among candidates (or any empty if empty board). */
-  function getEasyMove(board) {
-    const candidates = Game.getCandidateMoves(board, 2);
-    const pool = candidates.length > 0 ? candidates : Game.getLegalMoves(board);
-    if (pool.length === 0) {
+  /**
+   * Tunable Easy AI knobs (beginner: sees forced wins/blocks, noisy otherwise).
+   * Higher SCORE_WEIGHT_EXPONENT → closer to Medium. Lower → more random.
+   */
+  const EASY_DEFAULTS = {
+    /** Softmax-like emphasis on higher heuristic scores (typically 1.0–2.0). Lower = weaker. */
+    SCORE_WEIGHT_EXPONENT: 1.0,
+    /** Added before exponentiation so low/negative scores still get some weight. */
+    SCORE_WEIGHT_OFFSET: 80,
+    /** After ranking, only the top N candidates enter the weighted lottery. Higher = noisier. */
+    TOP_CANDIDATE_COUNT: 14,
+    /**
+     * Chance to skip a non-forced “good” pick and choose uniformly from the top pool.
+     * Makes Easy miss quiet attacking/defending chances more often (0–1).
+     */
+    UNIFORM_PICK_CHANCE: 0.45,
+  };
+
+  /**
+   * Moves that immediately win for `player` among `candidates`.
+   * Temporarily mutates `board` (restored before return).
+   */
+  function findImmediateWinningMoves(board, player, candidates) {
+    const wins = [];
+    for (let i = 0; i < candidates.length; i += 1) {
+      const index = candidates[i];
+      if (board[index] !== Game.EMPTY) {
+        continue;
+      }
+      board[index] = player;
+      const win = Game.checkWinnerFrom(board, index);
+      board[index] = Game.EMPTY;
+      if (win) {
+        wins.push(index);
+      }
+    }
+    return wins;
+  }
+
+  /**
+   * Weighted random among `{ index, score }` items.
+   * Weight = (score - minScore + OFFSET) ^ EXPONENT
+   */
+  function pickWeightedIndex(scoredItems, randomFn, config) {
+    if (scoredItems.length === 0) {
       return null;
     }
-    return pickRandom(pool);
+    if (scoredItems.length === 1) {
+      return scoredItems[0].index;
+    }
+
+    const offset =
+      typeof config.SCORE_WEIGHT_OFFSET === "number"
+        ? config.SCORE_WEIGHT_OFFSET
+        : EASY_DEFAULTS.SCORE_WEIGHT_OFFSET;
+    const exponent =
+      typeof config.SCORE_WEIGHT_EXPONENT === "number"
+        ? config.SCORE_WEIGHT_EXPONENT
+        : EASY_DEFAULTS.SCORE_WEIGHT_EXPONENT;
+
+    let minScore = scoredItems[0].score;
+    for (let i = 1; i < scoredItems.length; i += 1) {
+      if (scoredItems[i].score < minScore) {
+        minScore = scoredItems[i].score;
+      }
+    }
+
+    const weights = [];
+    let total = 0;
+    for (let i = 0; i < scoredItems.length; i += 1) {
+      const base = scoredItems[i].score - minScore + offset;
+      const weight = Math.pow(Math.max(base, 1e-6), exponent);
+      weights.push(weight);
+      total += weight;
+    }
+
+    let needle = randomFn() * total;
+    for (let i = 0; i < scoredItems.length; i += 1) {
+      needle -= weights[i];
+      if (needle <= 0) {
+        return scoredItems[i].index;
+      }
+    }
+    return scoredItems[scoredItems.length - 1].index;
+  }
+
+  /**
+   * Easy: beginner AI — forced win/block, otherwise noisy heuristic choice.
+   * options: EASY_DEFAULTS keys + { random }
+   */
+  function getEasyMove(board, player, options) {
+    const opts = options || {};
+    const config = {
+      SCORE_WEIGHT_EXPONENT:
+        typeof opts.SCORE_WEIGHT_EXPONENT === "number"
+          ? opts.SCORE_WEIGHT_EXPONENT
+          : EASY_DEFAULTS.SCORE_WEIGHT_EXPONENT,
+      SCORE_WEIGHT_OFFSET:
+        typeof opts.SCORE_WEIGHT_OFFSET === "number"
+          ? opts.SCORE_WEIGHT_OFFSET
+          : EASY_DEFAULTS.SCORE_WEIGHT_OFFSET,
+      TOP_CANDIDATE_COUNT:
+        typeof opts.TOP_CANDIDATE_COUNT === "number"
+          ? opts.TOP_CANDIDATE_COUNT
+          : EASY_DEFAULTS.TOP_CANDIDATE_COUNT,
+      UNIFORM_PICK_CHANCE:
+        typeof opts.UNIFORM_PICK_CHANCE === "number"
+          ? opts.UNIFORM_PICK_CHANCE
+          : EASY_DEFAULTS.UNIFORM_PICK_CHANCE,
+    };
+    const randomFn = typeof opts.random === "function" ? opts.random : Math.random;
+
+    let candidates = Game.getCandidateMoves(board, 2);
+    if (candidates.length === 0) {
+      candidates = Game.getLegalMoves(board);
+    }
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    // 1) Always finish an immediate win.
+    const myWins = findImmediateWinningMoves(board, player, candidates);
+    if (myWins.length > 0) {
+      return pickRandom(myWins, randomFn);
+    }
+
+    // 2) Always block an opponent's immediate win.
+    const opponent = Game.nextPlayer(player);
+    const blocks = findImmediateWinningMoves(board, opponent, candidates);
+    if (blocks.length > 0) {
+      return pickRandom(blocks, randomFn);
+    }
+
+    // 3) Otherwise: rank by the shared heuristic, keep top-N, then sample.
+    const ranked = sortCandidates(board, candidates, player);
+    const topCount = Math.max(
+      1,
+      Math.min(config.TOP_CANDIDATE_COUNT, ranked.length)
+    );
+    const pool = ranked.slice(0, topCount);
+
+    // Often ignore weights and pick uniformly → more beginner-like mistakes.
+    if (randomFn() < config.UNIFORM_PICK_CHANCE) {
+      return pickRandom(
+        pool.map(function (item) {
+          return item.index;
+        }),
+        randomFn
+      );
+    }
+
+    return pickWeightedIndex(pool, randomFn, config);
   }
 
   /** Medium: greedy heuristic attack + defence on candidate set. */
@@ -319,7 +464,7 @@
     const level = (difficulty || "easy").toLowerCase();
 
     if (level === "easy") {
-      return Promise.resolve(getEasyMove(board));
+      return Promise.resolve(getEasyMove(board, player));
     }
     if (level === "medium") {
       return Promise.resolve(getMediumMove(board, player));
@@ -330,7 +475,7 @@
       });
     }
 
-    return Promise.resolve(getEasyMove(board));
+    return Promise.resolve(getEasyMove(board, player));
   }
 
   function isLegalAiMove(board, move) {
@@ -344,10 +489,13 @@
 
   return {
     WIN_SCORE: WIN_SCORE,
+    EASY_DEFAULTS: EASY_DEFAULTS,
     patternScore: patternScore,
     scoreMoveForPlayer: scoreMoveForPlayer,
     evaluateBoard: evaluateBoard,
     rankMove: rankMove,
+    findImmediateWinningMoves: findImmediateWinningMoves,
+    pickWeightedIndex: pickWeightedIndex,
     getEasyMove: getEasyMove,
     getMediumMove: getMediumMove,
     getHardMove: getHardMove,

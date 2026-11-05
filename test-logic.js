@@ -154,7 +154,7 @@ assert(Game.nextPlayer(Game.WHITE) === Game.BLACK, "White switches to Black");
   const board = emptyBoard();
   place(board, 7, 7, Game.BLACK);
 
-  const easy = AI.getEasyMove(board);
+  const easy = AI.getEasyMove(board, Game.WHITE);
   assert(AI.isLegalAiMove(board, easy), "Easy AI returns a legal empty cell");
 
   const medium = AI.getMediumMove(board, Game.WHITE);
@@ -170,6 +170,98 @@ assert(Game.nextPlayer(Game.WHITE) === Game.BLACK, "White switches to Black");
   const blocksThreat =
     blockCoord.row === 7 && (blockCoord.col === 2 || blockCoord.col === 7);
   assert(blocksThreat, "Medium AI blocks an open four on the same row");
+})();
+
+// --- Easy AI: forced win, forced block, legality, weighted randomness ---
+(function () {
+  // Immediate win: White has four in a row with an open end.
+  const winBoard = emptyBoard();
+  for (let c = 3; c <= 6; c += 1) {
+    place(winBoard, 7, c, Game.WHITE);
+  }
+  place(winBoard, 0, 0, Game.BLACK); // so candidates are not "first move only"
+  const winMove = AI.getEasyMove(winBoard, Game.WHITE, { random: function () { return 0; } });
+  const winCoord = Game.indexToCoord(winMove);
+  assert(
+    winCoord.row === 7 && (winCoord.col === 2 || winCoord.col === 7),
+    "Easy AI takes an immediate winning move"
+  );
+
+  // Immediate block: Black threatens four; White must block.
+  const blockBoard = emptyBoard();
+  for (let c = 3; c <= 6; c += 1) {
+    place(blockBoard, 7, c, Game.BLACK);
+  }
+  const easyBlock = AI.getEasyMove(blockBoard, Game.WHITE, {
+    random: function () {
+      return 0.99;
+    },
+  });
+  const easyBlockCoord = Game.indexToCoord(easyBlock);
+  assert(
+    easyBlockCoord.row === 7 &&
+      (easyBlockCoord.col === 2 || easyBlockCoord.col === 7),
+    "Easy AI blocks an opponent immediate win"
+  );
+
+  // Legal moves on a mid-game board (repeated draws).
+  const legalBoard = emptyBoard();
+  place(legalBoard, 7, 7, Game.BLACK);
+  place(legalBoard, 7, 8, Game.WHITE);
+  let allLegal = true;
+  for (let i = 0; i < 20; i += 1) {
+    const move = AI.getEasyMove(legalBoard, Game.WHITE);
+    if (!AI.isLegalAiMove(legalBoard, move)) {
+      allLegal = false;
+      break;
+    }
+  }
+  assert(allLegal, "Easy AI only returns legal moves across repeated calls");
+
+  // Weighted selection: equal scores → uniform buckets; r picks 1st / last.
+  const equalScores = [
+    { index: 11, score: 100 },
+    { index: 22, score: 100 },
+    { index: 33, score: 100 },
+  ];
+  assert(
+    AI.pickWeightedIndex(equalScores, function () { return 0; }, AI.EASY_DEFAULTS) === 11,
+    "weighted random with r=0 selects the first equal-score candidate"
+  );
+  assert(
+    AI.pickWeightedIndex(equalScores, function () { return 0.999; }, AI.EASY_DEFAULTS) === 33,
+    "weighted random with r≈1 selects the last equal-score candidate"
+  );
+
+  // Higher score gets the first lottery slot (r=0).
+  const skewed = [
+    { index: 10, score: 1000 },
+    { index: 20, score: 10 },
+  ];
+  assert(
+    AI.pickWeightedIndex(skewed, function () { return 0; }, AI.EASY_DEFAULTS) === 10,
+    "weighted random with r=0 prefers the higher-scored candidate"
+  );
+
+  // TOP_CANDIDATE_COUNT=1 ignores random (only one weighted option).
+  const quiet = emptyBoard();
+  place(quiet, 7, 7, Game.BLACK);
+  const easyA = AI.getEasyMove(quiet, Game.WHITE, {
+    TOP_CANDIDATE_COUNT: 1,
+    random: function () {
+      return 0;
+    },
+  });
+  const easyB = AI.getEasyMove(quiet, Game.WHITE, {
+    TOP_CANDIDATE_COUNT: 1,
+    random: function () {
+      return 0.99;
+    },
+  });
+  assert(
+    easyA === easyB && AI.isLegalAiMove(quiet, easyA),
+    "Easy with TOP_CANDIDATE_COUNT=1 is deterministic and legal"
+  );
 })();
 
 // --- Hard AI (async) ---
